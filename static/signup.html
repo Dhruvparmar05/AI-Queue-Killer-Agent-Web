@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><title>Terminal Registration</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <h2>Register Profile</h2><p>Establish verified terminal node profile</p>
+            <form action="/signup" method="POST">
+                <label class="form-label">Operator Code</label>
+                <input type="text" class="input-field" placeholder="Terminal Identifier" required>
+                <label class="form-label">Security Master Token</label>
+                <input type="password" class="input-field" placeholder="••••••••" required>
+                <button type="submit" class="action-btn">Compile Profile</button>
+            </form>
+            <div class="auth-nav">Existing node setup? <a href="/login">Sign In</a></div>
+        </div>
+    </div>
+</body>
+</html>

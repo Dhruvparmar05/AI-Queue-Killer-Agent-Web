@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><title>Terminal Authentication</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <h2>Welcome Operator</h2><p>Authorize session node profile access</p>
+            <form action="/login" method="POST">
+                <label class="form-label">Operator Terminal ID</label>
+                <input type="text" name="username" class="input-field" placeholder="Enter custom identity" required>
+                <label class="form-label">Access Token</label>
+                <input type="password" class="input-field" placeholder="••••••••" required>
+                <button type="submit" class="action-btn">Open Control Node</button>
+            </form>
+            <div class="auth-nav">New node setup? <a href="/signup">Register Profile</a></div>
+        </div>
+    </div>
+</body>
+</html>

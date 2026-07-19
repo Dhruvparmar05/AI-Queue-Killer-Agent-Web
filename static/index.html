@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><title>Queue Killer Terminal</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand-title"><span style="background: linear-gradient(135deg, #3b82f6, #8b5cf6); padding: 0.4rem; border-radius:8px;">⚡</span> QUEUE KILLER</div>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:-1rem;">Isolated Operational Mode</p>
+            <form id="agent-submission-form">
+                <label style="font-size:0.85rem; font-weight:500; color:var(--text-muted);">Payload Instruction Input</label>
+                <textarea id="user_input" name="user_input" placeholder="Enter execution flow commands..." required></textarea>
+                <button type="submit" class="action-btn" style="margin-top:1rem;">Spawn Dynamic Agent</button>
+            </form>
+            <div id="captcha-container" class="captcha-container hidden">
+                <h4 style="font-size:0.85rem; color:var(--warning)">SECURE CAPTCHA TUNNEL</h4>
+                <div class="captcha-box-img"><img id="captcha-img" src=""></div>
+                <div style="display:flex; gap:0.5rem;">
+                    <input type="text" id="captcha-value" class="input-field" style="margin:0; text-align:center; font-weight:bold;" placeholder="CODE">
+                    <button onclick="submitCaptchaToken()" class="action-btn" style="width:auto; background:var(--success); padding:0 1rem;">INJECT</button>
+                </div>
+            </div>
+            <div style="margin-top:auto;"><a href="/login" style="color:var(--danger); font-size:0.85rem; text-decoration:none; font-weight:600;">➔ Disconnect Session</a></div>
+        </aside>
+        <main class="main-viewport">
+            <header class="top-nav">
+                <div class="live-status"><span class="live-dot"></span><span id="global-status">Terminal Engine Online</span></div>
+                <div style="font-size:0.8rem; background:var(--bg-input); padding:0.25rem 0.75rem; border-radius:20px; border:1px solid var(--border)">Secure Instance</div>
+            </header>
+            <section class="monitor-area">
+                <div class="monitor-card">
+                    <h3 style="font-size: 1.2rem; color: var(--text-muted)">ACTIVE RUNTIME PIPELINE MONITOR</h3>
+                    <div style="margin-top: 1.5rem;">
+                        <span class="pipeline-tag" id="active-id">Pipeline: None Active</span>
+                    </div>
+                    <div class="status-display" id="active-status">System Idle: Awaiting Prompt Initialization</div>
+                    <p style="font-size: 0.85rem; color: var(--text-muted);">This screen only reflects your current runtime stream. Full tracking log access is protected.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script>
+        document.getElementById('agent-submission-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const res = await fetch('/submit', { method: 'POST', body: formData });
+            const data = await res.json();
+            if(data.status === 'SPAWNED') {
+                document.getElementById('global-status').innerText = "Matrix Loop Active";
+                document.getElementById('user_input').value = '';
+            }
+        });
+        async function updateDashboardMetrics() {
+            const res = await fetch('/live-status');
+            const state = await res.json();
+            
+            if(state.current_id) {
+                document.getElementById('active-id').innerText = "Pipeline ID: #" + state.current_id;
+                document.getElementById('active-status').innerText = state.status;
+                
+                // Toggle status colors dynamically
+                if(state.status.includes('Failed')) document.getElementById('active-status').style.color = 'var(--danger)';
+                else if(state.status.includes('Success')) document.getElementById('active-status').style.color = 'var(--success)';
+                else if(state.status.includes('WAITING')) document.getElementById('active-status').style.color = 'var(--warning)';
+                else document.getElementById('active-status').style.color = 'var(--primary)';
+
+                if(state.status === "WAITING_FOR_CAPTCHA" && state.captcha_img) {
+                    document.getElementById('captcha-img').src = "data:image/png;base64," + state.captcha_img;
+                    document.getElementById('captcha-container').classList.remove('hidden');
+                }
+            }
+            if(state.status !== "WAITING_FOR_CAPTCHA") {
+                document.getElementById('captcha-container').classList.add('hidden');
+            }
+        }
+        async function submitCaptchaToken() {
+            const val = document.getElementById('captcha-value').value;
+            await fetch('/submit-captcha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ captcha_value: val })
+            });
+            document.getElementById('captcha-value').value = '';
+            document.getElementById('captcha-container').classList.add('hidden');
+        }
+        setInterval(updateDashboardMetrics, 1500);
+    </script>
+</body>
+</html>

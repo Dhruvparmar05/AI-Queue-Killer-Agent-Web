@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Killer - Autonomous Control Center</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">⚡</div>
+                <h2>QUEUE KILLER</h2>
+            </div>
+            <p class="subtitle">Autonomous Slot Agent Panel</p>
+            
+            <form id="agent-form" class="control-form">
+                <div class="input-group">
+                    <label for="user_input">Enter AI Agent Instructions</label>
+                    <textarea id="user_input" name="user_input" placeholder="e.g., Book passport slot for Dhruv Patel, check availability ASAP..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" id="launch-btn">
+                    <span>Spawn Core Agent</span>
+                    <div class="spinner hidden"></div>
+                </button>
+            </form>
+            
+            <!-- Live Captcha Action Box -->
+            <div id="captcha-container" class="captcha-box hidden">
+                <div class="badge animate-pulse">ACTION REQUIRED</div>
+                <h3>Secure Captcha Tunnel</h3>
+                <div class="captcha-wrapper">
+                    <img id="captcha-img" src="" alt="Waiting for token...">
+                </div>
+                <div class="input-inline">
+                    <input type="text" id="captcha-value" placeholder="Enter Captcha Code" maxlength="10">
+                    <button onclick="submitCaptchaToken()" class="btn btn-success">Inject</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Real-Time Monitoring Center -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="status-indicator">
+                    <span class="pulse-dot"></span>
+                    <span id="global-status">System Live: Awaiting Payload</span>
+                </div>
+                <div class="server-tag">Port: 5005</div>
+            </header>
+
+            <section class="logs-section">
+                <div class="section-title">
+                    <h3>Active Terminal & Pipelines</h3>
+                    <span class="badge-count" id="log-count">0 Active</span>
+                </div>
+                
+                <div class="table-container">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Pipeline ID</th>
+                                <th>Target User</th>
+                                <th>Domain</th>
+                                <th>Current Status Indicator</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-tbody">
+                            <!-- Live Logs Loop via JS -->
+                            <tr class="empty-state">
+                                <td colspan="5">No agents spawned in this session. Trigger an instruction to start.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        let currentActiveRecordId = null;
+
+        document.getElementById('agent-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const launchBtn = document.getElementById('launch-btn');
+            const spinner = launchBtn.querySelector('.spinner');
+            
+            launchBtn.disabled = true;
+            spinner.classList.remove('hidden');
+
+            const formData = new FormData(e.target);
+            try {
+                const res = await fetch('/submit', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.status === 'AGENT_SPAWNED') {
+                    document.getElementById('global-status').innerText = "Agent Active (ID: " + data.record_id + ")";
+                    document.getElementById('user_input').value = '';
+                }
+            } catch (err) {
+                console.error("Agent execution failed.", err);
+            } finally {
+                launchBtn.disabled = false;
+                spinner.classList.add('hidden');
+            }
+        });
+
+        async function updateDashboardMetrics() {
+            try {
+                const res = await fetch('/history');
+                const logs = await res.json();
+                const tbody = document.getElementById('logs-tbody');
+                
+                if (logs.length === 0) return;
+                
+                document.getElementById('log-count').innerText = logs.length + " logged";
+                tbody.innerHTML = '';
+                
+                // Track captcha requirements
+                let captchaNeeded = false;
+
+                logs.forEach(log => {
+                    const row = document.createElement('tr');
+                    
+                    let statusClass = 'status-pending';
+                    if (log.status.includes('WAITING')) {
+                        statusClass = 'status-waiting';
+                        if (!captchaNeeded) {
+                            currentActiveRecordId = log.id;
+                            if (log.captcha_img) {
+                                document.getElementById('captcha-img').src = "data:image/png;base64," + log.captcha_img;
+                                document.getElementById('captcha-container').classList.remove('hidden');
+                                captchaNeeded = true;
+                            }
+                        }
+                    } else if (log.status.includes('Success')) {
+                        statusClass = 'status-success';
+                    } else if (log.status.includes('Failed')) {
+                        statusClass = 'status-failed';
+                    } else if (log.status.includes('MONITORING')) {
+                        statusClass = 'status-active';
+                    }
+
+                    row.innerHTML = `
+                        <td><span class="mono">#${log.id}</span></td>
+                        <td><strong>${log.user_name}</strong></td>
+                        <td><span class="badge-domain">${log.target_domain}</span></td>
+                        <td><span class="status-pill ${statusClass}">${log.status}</span></td>
+                        <td class="text-muted">${new Date().toLocaleTimeString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                if (!captchaNeeded) {
+                    document.getElementById('captcha-container').classList.add('hidden');
+                }
+            } catch (err) {
+                console.error("Metrics pulling error", err);
+            }
+        }
+
+        async function submitCaptchaToken() {
+            const val = document.getElementById('captcha-value').value;
+            if (!val || !currentActiveRecordId) return alert("Please enter valid captcha token!");
+
+            const res = await fetch('/submit-captcha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: currentActiveRecordId, captcha_value: val })
+            });
+            const data = await res.json();
+            if (data.status === 'CAPTCHA_SUBMITTED_TO_AGENT') {
+                document.getElementById('captcha-value').value = '';
+                document.getElementById('captcha-container').classList.add('hidden');
+            }
+        }
+
+        // Live Poll Status updates every 2.5 seconds
+        setInterval(updateDashboardMetrics, 2500);
+    </script>
+</body>
+</html>
