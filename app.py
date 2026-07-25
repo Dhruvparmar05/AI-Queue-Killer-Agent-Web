@@ -1,178 +1,173 @@
-import base64
-import json
-import asyncio
-import threading
 import os
-from flask import Flask, request, jsonify, redirect, url_for, session
-from google import genai
-from supabase import create_client, Client
-from playwright.async_api import async_playwright
+import sqlite3
+import asyncio
+from flask import Flask, render_template, request, redirect, session, jsonify
 from dotenv import load_dotenv
+from playwright.async_api import async_playwright
 
-# Initialize Environment Variable Engine
 load_dotenv()
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
-static_path = os.path.join(base_dir, 'static')
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "queue_killer_db_secured_secret_2026")
 
-app = Flask(__name__, static_folder=static_path)
-app.secret_key = os.getenv("FLASK_SECRET", "queue_killer_isolated_session_2026")
+DATABASE = "database.db"
 
-# Core Credentials Mapping fetched from secure local .env config
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# ----------------- DATABASE SETUP ----------------- #
+def init_db():
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            phone TEXT NOT NULL,
+            password TEXT NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("[CRITICAL] Supabase environmental variables are missing! Check your .env setup.")
+# Initialize Database on Startup
+init_db()
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# Global in-memory state for the active runtime session only (Zero DB exposure to user UI)
-active_session_state = {
-    "current_id": None,
-    "status": "System Idle",
-    "captcha_img": None
-}
-
-# --- PLAYWRIGHT ASYNC PIPELINE ---
-async def async_passport_pipeline(record_id):
-    global active_session_state
-    print(f"[AGENT] Spawning independent execution node for ID: {record_id}")
-    
-    async with async_playwright() as p:
-        # headless=False and slow_mo to handle navigation safely
-        browser = await p.chromium.launch(headless=False, slow_mo=800)
-        context = await browser.new_context(viewport={"width": 1280, "height": 720})
-        page = await context.new_page()
-        
-        try:
-            active_session_state["status"] = "LAUNCHING_BROWSER"
-            supabase.table("queue_logs").update({"status": "LAUNCHING_BROWSER"}).eq("id", record_id).execute()
-            
-            await page.goto("https://www.passportindia.gov.in/", timeout=60000, wait_until="load")
-            
-            # Dismiss Popup Advisory Box if present
-            try:
-                popup_close = await page.wait_for_selector("a#popupCloseBtn, .close, img[alt='close']", timeout=5000)
-                if popup_close:
-                    await popup_close.click()
-            except Exception:
-                pass
-
-            print("[AGENT] Executing dynamic JavaScript bypass routing...")
-            await page.evaluate("() => { if(typeof openApplication === 'function') { openApplication('welcomeLink'); } else { window.location.href = 'https://portal2.passportindia.gov.in/AppOnlineProject/welcomeLink'; } }")
-            
-            await page.wait_for_selector("#loginId", timeout=25000)
-            
-            active_session_state["status"] = "WAITING_FOR_USER_LOGIN"
-            supabase.table("queue_logs").update({"status": "WAITING_FOR_USER_LOGIN"}).eq("id", record_id).execute()
-            
-            # Capture dynamic captcha stream directly from site wrapper
-            captcha_element = await page.wait_for_selector("#captchaImgID", timeout=30000)
-            captcha_bytes = await captcha_element.screenshot()
-            b64_captcha = base64.b64encode(captcha_bytes).decode('utf-8')
-            
-            active_session_state["captcha_img"] = b64_captcha
-            active_session_state["status"] = "WAITING_FOR_CAPTCHA"
-            supabase.table("queue_logs").update({"status": "WAITING_FOR_CAPTCHA", "captcha_img": b64_captcha}).eq("id", record_id).execute()
-            
-            resolved_captcha = None
-            for _ in range(60):  
-                await asyncio.sleep(2)
-                check_db = supabase.table("queue_logs").select("captcha_value").eq("id", record_id).execute()
-                if check_db.data and check_db.data[0].get("captcha_value"):
-                    resolved_captcha = check_db.data[0]["captcha_value"]
-                    break
-            
-            if not resolved_captcha:
-                active_session_state["status"] = "Failed: Captcha Timeout"
-                active_session_state["captcha_img"] = None
-                supabase.table("queue_logs").update({"status": "Failed: Captcha Timeout"}).eq("id", record_id).execute()
-                return
-
-            print(f"[AGENT] Injecting code token: {resolved_captcha}")
-            await page.fill("#captcha", resolved_captcha)
-            
-            active_session_state["status"] = "MONITORING_SLOTS"
-            active_session_state["captcha_img"] = None
-            supabase.table("queue_logs").update({"status": "MONITORING_SLOTS"}).eq("id", record_id).execute()
-            await asyncio.sleep(35)
-            
-            active_session_state["status"] = "Success: Run Complete"
-        except Exception as err:
-            active_session_state["status"] = f"Failed: {str(err)[:50]}"
-            active_session_state["captcha_img"] = None
-            supabase.table("queue_logs").update({"status": f"Failed: {str(err)[:50]}"}).eq("id", record_id).execute()
-        finally:
-            await browser.close()
-
-def start_async_loop(record_id):
-    asyncio.run(async_passport_pipeline(record_id))
-
-# --- APP NAVIGATION ROUTING LOGIC ---
+# ----------------- FLASK ROUTES ----------------- #
 @app.route('/')
-def root():
-    return redirect(url_for('login_page'))
+def index():
+    if "user_email" in session:
+        return redirect('/dashboard')
+    return render_template('index.html')
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login')
 def login_page():
-    if request.method == 'POST':
-        session['user'] = request.form.get('username')
-        return redirect(url_for('dashboard'))
-    return app.send_static_file('login.html')
-
-@app.route('/signup', methods=['GET', 'POST'])
-def signup_page():
-    if request.method == 'POST':
-        return redirect(url_for('login_page'))
-    return app.send_static_file('signup.html')
+    if "user_email" in session:
+        return redirect('/dashboard')
+    return render_template('login.html')
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user' not in session:
-        return redirect(url_for('login_page'))
-    return app.send_static_file('index.html')
+    if "user_email" not in session:
+        return redirect('/login')
+    return render_template('dashboard.html', user_name=session.get('user_name'))
 
-@app.route('/submit', methods=['POST'])
-def submit_request():
-    global active_session_state
-    raw_input = request.form.get('user_input', '')
-    if not raw_input:
-        return jsonify({"error": "Empty prompt payload"}), 400
-        
-    db_insert = supabase.table("queue_logs").insert({
-        "user_name": "Parmar",
-        "target_domain": "PASSPORT",
-        "status": "INITIALIZING",
-        "extracted_fields": {}
-    }).execute()
+# ----------------- AUTHENTICATION WITH SQLITE DB ----------------- #
+@app.route('/auth/register', methods=['POST'])
+def register():
+    name = request.form.get('name')
+    email = request.form.get('email')
+    phone = request.form.get('phone')
+    password = request.form.get('password')
     
-    record_id = db_insert.data[0]['id']
-    active_session_state["current_id"] = record_id
-    active_session_state["status"] = "INITIALIZING"
-    active_session_state["captcha_img"] = None
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("INSERT INTO users (name, email, phone, password) VALUES (?, ?, ?, ?)",
+                       (name, email, phone, password))
+        conn.commit()
+        session['user_email'] = email
+        session['user_name'] = name
+    except sqlite3.IntegrityError:
+        conn.close()
+        return "<script>alert('Email already registered! Please login.'); window.location.href='/login';</script>"
     
-    threading.Thread(target=start_async_loop, args=(record_id,), daemon=True).start()
-    return jsonify({"status": "SPAWNED", "record_id": record_id})
+    conn.close()
+    return redirect('/dashboard')
 
-@app.route('/live-status', methods=['GET'])
-def get_live_status():
-    return jsonify(active_session_state)
-
-@app.route('/submit-captcha', methods=['POST'])
-def submit_captcha():
-    global active_session_state
-    data = request.json
-    target_id = active_session_state["current_id"]
+@app.route('/auth/login', methods=['POST'])
+def login():
+    email = request.form.get('email')
+    password = request.form.get('password')
     
-    if target_id:
-        supabase.table("queue_logs").update({
-            "captcha_value": data.get('captcha_value'), 
-            "status": "INJECTING_TOKEN"
-        }).eq("id", target_id).execute()
-        active_session_state["status"] = "INJECTING_TOKEN"
-        
-    return jsonify({"status": "SUBMITTED"})
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password)).fetchone()
+    conn.close()
+    
+    if user:
+        session['user_email'] = user['email']
+        session['user_name'] = user['name']
+        return redirect('/dashboard')
+    else:
+        return "<script>alert('Invalid Email or Password!'); window.location.href='/login';</script>"
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/')
+
+# ----------------- PLAYWRIGHT AUTOMATION ENGINE ----------------- #
+async def run_playwright_pipeline(data):
+    p = await async_playwright().start()
+    browser = await p.chromium.launch(headless=False, args=["--start-maximized", "--disable-notifications"])
+    context = await browser.new_context(no_viewport=True)
+    page = await context.new_page()
+
+    portal = data.get('portal')
+    is_registered = data.get('is_registered')
+    user_id = data.get('portal_user_id')
+
+    try:
+        if portal == "passport":
+            print("[*] Navigating to Passport India Portal...")
+            await page.goto("https://www.passportindia.gov.in", wait_until="domcontentloaded", timeout=60000)
+            await page.wait_for_timeout(2000)
+            
+            # Dismiss popups
+            try:
+                close_btn = page.locator("text=Close").first
+                if await close_btn.is_visible(timeout=2000):
+                    await close_btn.click()
+            except Exception:
+                pass
+
+            if is_registered:
+                print("[*] Navigating to Existing User Login...")
+                login_btn = page.locator("text=Existing User Login").first
+                if await login_btn.is_visible(timeout=4000):
+                    await login_btn.click()
+                    await page.wait_for_timeout(2000)
+
+                    user_input = page.locator("input[name='loginId'], input#loginId").first
+                    if await user_input.is_visible(timeout=4000) and user_id:
+                        await user_input.fill(user_id)
+                        print(f"[+] User ID '{user_id}' Auto-filled!")
+            else:
+                print("[*] Navigating to New User Registration Page...")
+                reg_btn = page.locator("text=New User Registration").first
+                if await reg_btn.is_visible(timeout=4000):
+                    await reg_btn.click()
+
+        elif portal == "rto":
+            print("[*] Navigating to Parivahan RTO Portal...")
+            await page.goto("https://parivahan.gov.in", wait_until="domcontentloaded")
+            
+        elif portal == "hospital":
+            print("[*] Navigating to ORS Govt Hospital Portal...")
+            await page.goto("https://ors.gov.in", wait_until="domcontentloaded")
+
+        # Keep browser active for Captcha / OTP entry
+        await page.wait_for_timeout(20000)
+
+    except Exception as e:
+        print(f"[-] Execution Error: {e}")
+
+@app.route('/submit_task', methods=['POST'])
+def submit_task():
+    data = request.get_json(force=True)
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(run_playwright_pipeline(data))
+
+    return jsonify({
+        "status": "success",
+        "message": f"Agent initialized for {data.get('portal').upper()}! Browser opened for auto-filling."
+    }), 200
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5005, debug=True, use_reloader=False)
+    print("🚀 QUEUE KILLER SERVER LIVE WITH SQLITE DB ON http://127.0.0.1:5000")
+    app.run(debug=True, port=5000)

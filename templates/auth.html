@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Killer - Login / Sign Up</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .auth-card { background: #ffffff; color: #333; border-radius: 16px; padding: 40px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 420px; }
+        .btn-toggle { border: none; background: transparent; font-weight: bold; }
+        .btn-toggle.active { color: #0d6efd; border-bottom: 2px solid #0d6efd; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-card text-center">
+        <h3 class="fw-bold mb-1 text-primary">Queue Killer</h3>
+        <p class="text-muted mb-4 small">AI Automation Agent Platform</p>
+
+        <!-- Toggle Tabs -->
+        <div class="d-flex justify-content-center mb-4 border-bottom">
+            <button class="btn btn-toggle active px-4 pb-2" id="loginTabBtn" onclick="showAuth('login')">Login</button>
+            <button class="btn btn-toggle px-4 pb-2 text-muted" id="signupTabBtn" onclick="showAuth('signup')">Sign Up</button>
+        </div>
+
+        <form id="authForm" onsubmit="handleAuth(event)">
+            <div class="mb-3 text-start">
+                <label class="form-label small fw-bold">Email Address</label>
+                <input type="email" id="authEmail" class="form-control" placeholder="name@example.com" required>
+            </div>
+            <div class="mb-3 text-start">
+                <label class="form-label small fw-bold">Password</label>
+                <input type="password" id="authPassword" class="form-control" placeholder="••••••••" required>
+            </div>
+
+            <div id="authAlert" class="alert alert-danger d-none py-2 small"></div>
+
+            <button type="submit" id="authSubmitBtn" class="btn btn-primary w-100 py-2 fw-bold mt-2">Login to Platform</button>
+        </form>
+    </div>
+
+    <script>
+        let mode = 'login';
+
+        function showAuth(type) {
+            mode = type;
+            document.getElementById('loginTabBtn').classList.toggle('active', mode === 'login');
+            document.getElementById('signupTabBtn').classList.toggle('active', mode === 'signup');
+            document.getElementById('loginTabBtn').classList.toggle('text-muted', mode !== 'login');
+            document.getElementById('signupTabBtn').classList.toggle('text-muted', mode !== 'signup');
+            document.getElementById('authSubmitBtn').innerText = mode === 'login' ? 'Login to Platform' : 'Create Account';
+            document.getElementById('authAlert').classList.add('d-none');
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const alertBox = document.getElementById('authAlert');
+
+            const endpoint = mode === 'login' ? '/api/login' : '/api/signup';
+            
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                alertBox.classList.remove('d-none');
+                alertBox.innerText = data.message;
+            }
+        }
+    </script>
+</body>
+</html>
