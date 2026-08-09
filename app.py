@@ -1,173 +1,178 @@
-import os
 import sqlite3
-import asyncio
-from flask import Flask, render_template, request, redirect, session, jsonify
-from dotenv import load_dotenv
-from playwright.async_api import async_playwright
-
-load_dotenv()
+import time
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from werkzeug.security import generate_password_hash, check_password_hash
+from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "queue_killer_db_secured_secret_2026")
+app.secret_key = "queue_killer_production_super_key_2026"
+DB_NAME = "queue_killer.db"
 
-DATABASE = "database.db"
-
-# ----------------- DATABASE SETUP ----------------- #
+# ---------------------------------------------------------
+# DATABASE INITIALIZATION
+# ---------------------------------------------------------
 def init_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
+            fullname TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
-            phone TEXT NOT NULL,
             password TEXT NOT NULL
         )
     ''')
     conn.commit()
     conn.close()
 
-# Initialize Database on Startup
 init_db()
 
-def get_db_connection():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# ---------------------------------------------------------
+# REAL GOVERNMENT PORTAL AUTOMATION AGENT
+# ---------------------------------------------------------
+class QueueKillerAgent:
+    @staticmethod
+    def execute_task(portal, service, input_data):
+        try:
+            with sync_playwright() as p:
+                # Launching Chromium in non-headless mode for visibility
+                browser = p.chromium.launch(
+                    headless=False,
+                    args=["--start-maximized", "--disable-blink-features=AutomationControlled"]
+                )
+                context = browser.new_context(viewport=None)
+                page = context.new_page()
+                page.set_default_timeout(60000)
 
-# ----------------- FLASK ROUTES ----------------- #
-@app.route('/')
+                # =========================================
+                # 1. PASSPORT SEVA OFFICIAL SERVICES
+                # =========================================
+                if portal == "passport":
+                    if service == "check_appointment":
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/statusTracker/checkAppointmentAvailabity", wait_until="domcontentloaded")
+                    elif service == "track_status":
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/statusTracker/trackStatusInpNew", wait_until="domcontentloaded")
+                        if input_data and page.is_visible("input[name='fileNo']"):
+                            page.fill("input[name='fileNo']", input_data)
+                    elif service == "fresh_passport":
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/user/registrationBaseAction?request_locale=en", wait_until="domcontentloaded")
+                    elif service == "locate_psk":
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/online/locatePSKInp", wait_until="domcontentloaded")
+                    elif service == "fee_calculator":
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/fee/feeCalInp", wait_until="domcontentloaded")
+                    else:
+                        page.goto("https://www.passportindia.gov.in/AppOnlineProject/welcomeLink", wait_until="domcontentloaded")
+
+                # =========================================
+                # 2. PARIVAHAN RTO SERVICES (SARATHI / VAHAN)
+                # =========================================
+                elif portal == "rto":
+                    if service == "pay_echallan":
+                        page.goto("https://echallan.parivahan.gov.in/", wait_until="domcontentloaded")
+                        if input_data and page.is_visible("input[name='challanNo']"):
+                            page.fill("input[name='challanNo']", input_data)
+                    elif service in ["ll_slot", "dl_slot"]:
+                        page.goto("https://sarathi.parivahan.gov.in/slots/slotBooking.do", wait_until="domcontentloaded")
+                        if input_data and page.is_visible("input[name='applNum']"):
+                            page.fill("input[name='applNum']", input_data)
+                    elif service == "rc_status":
+                        page.goto("https://vahan.parivahan.gov.in/nrservices/faces/user/citizen/citizenlogin.xhtml", wait_until="domcontentloaded")
+                    elif service == "hser_plate":
+                        page.goto("https://bookmyhsrp.com/", wait_until="domcontentloaded")
+                    else:
+                        page.goto("https://sarathi.parivahan.gov.in/sarathiservice/stateSelection.do", wait_until="domcontentloaded")
+
+                # =========================================
+                # 3. ORS MEDICAL & DIGITAL GUJARAT
+                # =========================================
+                elif portal == "ors":
+                    if service == "lab_reports":
+                        page.goto("https://ors.gov.in/orsportal/report.jsp", wait_until="domcontentloaded")
+                    else:
+                        page.goto("https://ors.gov.in/orsportal/", wait_until="domcontentloaded")
+
+                elif portal == "digital_gujarat":
+                    if service == "scholarship_status":
+                        page.goto("https://www.digitalgujarat.gov.in/Scholarship.aspx", wait_until="domcontentloaded")
+                    else:
+                        page.goto("https://www.digitalgujarat.gov.in/", wait_until="domcontentloaded")
+
+                # Keep browser open briefly so the operation is clearly visible
+                page.wait_for_timeout(7000)
+                browser.close()
+                return True, f"Automation successfully completed for {service.upper()}."
+
+        except Exception as e:
+            return False, f"Process Note: {str(e)[:100]}"
+
+# ---------------------------------------------------------
+# ROUTES
+# ---------------------------------------------------------
+@app.route("/")
 def index():
-    if "user_email" in session:
-        return redirect('/dashboard')
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/login')
-def login_page():
-    if "user_email" in session:
-        return redirect('/dashboard')
-    return render_template('login.html')
-
-@app.route('/dashboard')
+@app.route("/dashboard")
 def dashboard():
-    if "user_email" not in session:
-        return redirect('/login')
-    return render_template('dashboard.html', user_name=session.get('user_name'))
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    return render_template("dashboard.html")
 
-# ----------------- AUTHENTICATION WITH SQLITE DB ----------------- #
-@app.route('/auth/register', methods=['POST'])
-def register():
-    name = request.form.get('name')
-    email = request.form.get('email')
-    phone = request.form.get('phone')
-    password = request.form.get('password')
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT INTO users (name, email, phone, password) VALUES (?, ?, ?, ?)",
-                       (name, email, phone, password))
-        conn.commit()
-        session['user_email'] = email
-        session['user_name'] = name
-    except sqlite3.IntegrityError:
-        conn.close()
-        return "<script>alert('Email already registered! Please login.'); window.location.href='/login';</script>"
-    
-    conn.close()
-    return redirect('/dashboard')
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        fullname = request.form.get("fullname")
+        email = request.form.get("email")
+        password = generate_password_hash(request.form.get("password"))
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO users (fullname, email, password) VALUES (?, ?, ?)", (fullname, email, password))
+            conn.commit()
+            conn.close()
+            flash("Account registered successfully! Please log in.", "success")
+            return redirect(url_for("login"))
+        except sqlite3.IntegrityError:
+            flash("Email is already registered!", "danger")
+    return render_template("signup.html")
 
-@app.route('/auth/login', methods=['POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    email = request.form.get('email')
-    password = request.form.get('password')
-    
-    conn = get_db_connection()
-    user = conn.execute("SELECT * FROM users WHERE email = ? AND password = ?", (email, password)).fetchone()
-    conn.close()
-    
-    if user:
-        session['user_email'] = user['email']
-        session['user_name'] = user['name']
-        return redirect('/dashboard')
-    else:
-        return "<script>alert('Invalid Email or Password!'); window.location.href='/login';</script>"
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+        conn.close()
 
-@app.route('/logout')
+        if user and check_password_hash(user[3], password):
+            session["user_id"] = user[0]
+            session["user_name"] = user[1]
+            return redirect(url_for("dashboard"))
+        else:
+            flash("Invalid email address or password.", "danger")
+    return render_template("login.html")
+
+@app.route("/logout")
 def logout():
     session.clear()
-    return redirect('/')
+    flash("Logged out successfully.", "info")
+    return redirect(url_for("login"))
 
-# ----------------- PLAYWRIGHT AUTOMATION ENGINE ----------------- #
-async def run_playwright_pipeline(data):
-    p = await async_playwright().start()
-    browser = await p.chromium.launch(headless=False, args=["--start-maximized", "--disable-notifications"])
-    context = await browser.new_context(no_viewport=True)
-    page = await context.new_page()
-
-    portal = data.get('portal')
-    is_registered = data.get('is_registered')
-    user_id = data.get('portal_user_id')
-
-    try:
-        if portal == "passport":
-            print("[*] Navigating to Passport India Portal...")
-            await page.goto("https://www.passportindia.gov.in", wait_until="domcontentloaded", timeout=60000)
-            await page.wait_for_timeout(2000)
-            
-            # Dismiss popups
-            try:
-                close_btn = page.locator("text=Close").first
-                if await close_btn.is_visible(timeout=2000):
-                    await close_btn.click()
-            except Exception:
-                pass
-
-            if is_registered:
-                print("[*] Navigating to Existing User Login...")
-                login_btn = page.locator("text=Existing User Login").first
-                if await login_btn.is_visible(timeout=4000):
-                    await login_btn.click()
-                    await page.wait_for_timeout(2000)
-
-                    user_input = page.locator("input[name='loginId'], input#loginId").first
-                    if await user_input.is_visible(timeout=4000) and user_id:
-                        await user_input.fill(user_id)
-                        print(f"[+] User ID '{user_id}' Auto-filled!")
-            else:
-                print("[*] Navigating to New User Registration Page...")
-                reg_btn = page.locator("text=New User Registration").first
-                if await reg_btn.is_visible(timeout=4000):
-                    await reg_btn.click()
-
-        elif portal == "rto":
-            print("[*] Navigating to Parivahan RTO Portal...")
-            await page.goto("https://parivahan.gov.in", wait_until="domcontentloaded")
-            
-        elif portal == "hospital":
-            print("[*] Navigating to ORS Govt Hospital Portal...")
-            await page.goto("https://ors.gov.in", wait_until="domcontentloaded")
-
-        # Keep browser active for Captcha / OTP entry
-        await page.wait_for_timeout(20000)
-
-    except Exception as e:
-        print(f"[-] Execution Error: {e}")
-
-@app.route('/submit_task', methods=['POST'])
-def submit_task():
-    data = request.get_json(force=True)
+@app.route("/run-agent", methods=["POST"])
+def run_agent():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
     
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(run_playwright_pipeline(data))
+    portal = request.form.get("portal")
+    service = request.form.get("service")
+    input_data = request.form.get("input_data", "")
 
-    return jsonify({
-        "status": "success",
-        "message": f"Agent initialized for {data.get('portal').upper()}! Browser opened for auto-filling."
-    }), 200
+    success, msg = QueueKillerAgent.execute_task(portal, service, input_data)
+    flash(msg, "success" if success else "warning")
+    return redirect(url_for("dashboard"))
 
-if __name__ == '__main__':
-    print("🚀 QUEUE KILLER SERVER LIVE WITH SQLITE DB ON http://127.0.0.1:5000")
-    app.run(debug=True, port=5000)
+if __name__ == "__main__":
+    app.run(debug=True, port=8080)

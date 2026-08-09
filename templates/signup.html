@@ -1,22 +1,28 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"><title>Terminal Registration</title>
-    <link rel="stylesheet" href="/static/style.css">
-</head>
-<body>
-    <div class="auth-wrapper">
-        <div class="auth-card">
-            <h2>Register Profile</h2><p>Establish verified terminal node profile</p>
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center my-5">
+    <div class="col-md-5">
+        <div class="glass-card p-4 p-md-5">
+            <h3 class="text-center mb-4 fw-bold">Create Account</h3>
             <form action="/signup" method="POST">
-                <label class="form-label">Operator Code</label>
-                <input type="text" class="input-field" placeholder="Terminal Identifier" required>
-                <label class="form-label">Security Master Token</label>
-                <input type="password" class="input-field" placeholder="••••••••" required>
-                <button type="submit" class="action-btn">Compile Profile</button>
+                <div class="mb-3">
+                    <label class="form-label text-slate-300">Full Name</label>
+                    <input type="text" name="fullname" class="form-control" placeholder="Enter full name" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-slate-300">Email Address</label>
+                    <input type="email" name="email" class="form-control" placeholder="name@example.com" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label text-slate-300">Password</label>
+                    <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-gradient w-100 py-3 mb-3">Register</button>
             </form>
-            <div class="auth-nav">Existing node setup? <a href="/login">Sign In</a></div>
+            <div class="text-center">
+                <small class="text-slate-400">Already registered? <a href="/login" class="text-info text-decoration-none">Login</a></small>
+            </div>
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

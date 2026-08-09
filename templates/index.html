@@ -1,69 +1,20 @@
-<!DOCTYPE html>
-<html lang="gu">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Queue Killer - Smart AI Agent</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero-section { padding: 100px 0 60px; }
-        .feature-card { background: rgba(255, 255, 255, 0.05); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; transition: 0.3s; }
-        .feature-card:hover { transform: translateY(-5px); border-color: #3b82f6; }
-    </style>
-</head>
-<body>
-
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-transparent px-4 py-3">
-        <div class="container">
-            <a class="navbar-brand fw-bold fs-4" href="/">
-                <i class="fa-solid fa-bolt text-warning me-2"></i>Queue Killer
-            </a>
-            <div>
-                <a href="/login" class="btn btn-outline-light me-2">Login</a>
-                <a href="/login" class="btn btn-primary fw-bold">Sign Up</a>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Hero Section -->
-    <div class="container hero-section text-center">
-        <h1 class="display-4 fw-bold mb-3">Eliminate Manual Waiting Time with AI</h1>
-        <p class="lead text-secondary mb-4 mx-auto" style="max-width: 700px;">
-            An autonomous AI agent that monitors appointment slots, validates details, and automates form submission on Passport, RTO, and Government Portals.
-        </p>
-        <a href="/login" class="btn btn-primary btn-lg px-5 py-3 fw-bold shadow">
-            Get Started Now <i class="fa-solid fa-arrow-right ms-2"></i>
-        </a>
-
-        <!-- Feature Cards -->
-        <div class="row g-4 mt-5">
-            <div class="col-md-4">
-                <div class="feature-card p-4 text-start">
-                    <i class="fa-solid fa-passport fa-2x text-primary mb-3"></i>
-                    <h5 class="fw-bold">Passport India</h5>
-                    <p class="text-secondary mb-0">Automate appointment slot tracking and user registration seamlessly.</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="feature-card p-4 text-start">
-                    <i class="fa-solid fa-id-card fa-2x text-success mb-3"></i>
-                    <h5 class="fw-bold">RTO Parivahan</h5>
-                    <p class="text-secondary mb-0">Quickly check learning license (LL) and driving test (DL) slot availability.</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="feature-card p-4 text-start">
-                    <i class="fa-solid fa-hospital-user fa-2x text-danger mb-3"></i>
-                    <h5 class="fw-bold">Govt Hospital (ORS)</h5>
-                    <p class="text-secondary mb-0">Book OPD appointment slots without standing in long physically queues.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% extends 'base.html' %}{% block content %}
+<section class="hero shell">
+  <div class="hero-copy"><div class="eyebrow"><span></span> India’s smart service companion</div>
+    <h1>Skip the confusion.<br><em>Not the rules.</em></h1>
+    <p>Prepare Passport and RTO applications in one guided workspace. Check documents, choose the right workflow, track every step and continue securely on the official portal.</p>
+    <div class="hero-actions"><a class="button primary" href="{{ url_for('signup') }}">Launch smart console <span>↗</span></a><a class="button ghost" href="#services">Explore services</a></div>
+    <div class="trust"><span>✓ Official portal handoff</span><span>✓ Consent-first</span><span>✓ No OTP storage</span></div>
+  </div>
+  <div class="hero-visual glass">
+    <div class="visual-top"><span class="live-dot"></span> Agent readiness <b>ONLINE</b></div>
+    <div class="queue-map"><div class="map-node active">01 <span>Select service</span></div><div class="line"></div><div class="map-node">02 <span>Check documents</span></div><div class="line"></div><div class="map-node">03 <span>Official handoff</span></div></div>
+    <div class="metric-grid"><div><small>WORKFLOWS</small><strong>16+</strong></div><div><small>FOCUS HUBS</small><strong>02</strong></div><div><small>CONTROL</small><strong>100%</strong></div></div>
+  </div>
+</section>
+<section id="services" class="section shell"><div class="section-heading"><div><span class="kicker">CORE HUBS</span><h2>One console. Two essential journeys.</h2></div><p>Built around the services people use most—and the steps that usually cause the most delay.</p></div>
+  <div class="service-grid"><article class="service-card passport"><div class="icon">✦</div><span class="tag">PASSPORT SEVA</span><h3>Passport journeys, prepared.</h3><p>Fresh passport, renewal, Tatkaal, PCC, appointment checks and status tracking.</p><ul><li>Personalized document checklist</li><li>Application reference workspace</li><li>Secure official portal continuation</li></ul><a href="{{ url_for('signup') }}">Start passport workflow →</a></article>
+  <article class="service-card rto"><div class="icon">⌁</div><span class="tag">PARIVAHAN RTO</span><h3>Licence & vehicle tasks, simplified.</h3><p>LL, DL, test slots, renewals, e-Challan, RC transfer and hypothecation guidance.</p><ul><li>Sarathi and Vahan service routing</li><li>Form-ready information capture</li><li>Activity timeline and status</li></ul><a href="{{ url_for('signup') }}">Start RTO workflow →</a></article></div>
+</section>
+<section class="how shell"><div><span class="kicker">HOW IT WORKS</span><h2>From “where do I start?” to ready in minutes.</h2></div><div class="steps"><div><b>01</b><h3>Choose</h3><p>Select Passport or RTO and the exact service you need.</p></div><div><b>02</b><h3>Prepare</h3><p>Keep references and required information ready in one place.</p></div><div><b>03</b><h3>Continue</h3><p>Review consent and move to the verified government portal.</p></div></div></section>
+{% endblock %}
